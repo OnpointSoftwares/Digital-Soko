@@ -46,7 +46,7 @@ const productSchema = new mongoose.Schema(
     },
     tradeType: {
       type: String,
-      enum: ['FullAmount', 'TopUp', 'Barter'],
+      enum: ['FullAmount', 'TopUp', 'Barter','Any'],
       default: 'FullAmount',
     },
     subcategory: {
