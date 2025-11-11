@@ -148,7 +148,7 @@ function renderItems(items, grid) {
     card.className = "bg-white rounded-xl shadow hover:shadow-lg transition p-4";
     
     // Handle both backend and localStorage image formats
-    const imageUrl = item.images?.[0]?.url || item.image || 'https://via.placeholder.com/200';
+    const imageUrl = item.images?.[0]?.url || item.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
     const itemId = item._id || item.id;
     const itemPrice = item.price || 0;
     const itemCondition = item.condition || 'N/A';
@@ -158,7 +158,7 @@ function renderItems(items, grid) {
       <img src="${imageUrl}" 
            alt="${item.name}"
            class="w-full h-40 object-cover rounded-md mb-3"
-           onerror="this.src='https://via.placeholder.com/200?text=No+Image'">
+           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22200%22 height=%22200%22/%3E%3Ctext fill=%22%23999%22 font-family=%22sans-serif%22 font-size=%2216%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E'">
       <h4 class="text-lg font-semibold">${item.name}</h4>
       <p class="text-gray-600">Ksh ${itemPrice.toLocaleString()}</p>
       <p class="text-sm text-gray-500 mb-2">Condition: ${itemCondition}</p>
@@ -199,7 +199,7 @@ function openTradeModal(item) {
   const modal = document.getElementById("tradeModal");
   
   // Handle both backend and localStorage formats
-  const imageUrl = item.images?.[0]?.url || item.image || 'https://via.placeholder.com/200';
+  const imageUrl = item.images?.[0]?.url || item.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
   const itemPrice = item.price || 0;
   const itemTradeType = item.tradeType || 'FullAmount';
   
@@ -287,7 +287,7 @@ if (userItemSelect) {
       const selectedItem = allUserItems.find(item => (item._id || item.id).toString() === selectedItemId);
       if (selectedItem) {
         // Show item details
-        const itemImage = selectedItem.images?.[0]?.url || selectedItem.image || 'https://via.placeholder.com/200';
+        const itemImage = selectedItem.images?.[0]?.url || selectedItem.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
         const itemPrice = selectedItem.price || 0;
         document.getElementById("userItemImage").src = itemImage;
         document.getElementById("userItemName").textContent = selectedItem.name;
@@ -392,9 +392,9 @@ function updateTradeSummary() {
 
 // Confirm trade button handler
 if (confirmTradeBtn) {
-  confirmTradeBtn.addEventListener("click", () => {
+  confirmTradeBtn.addEventListener("click", async () => {
     const tradeType = tradeTypeSelect.value;
-    const userItemId = parseInt(userItemSelect.value);
+    const userItemId = userItemSelect.value;
     const moneyAmount = parseFloat(moneyAmountInput.value) || 0;
     
     if (!currentRequestedItem || !tradeType) {
@@ -407,7 +407,7 @@ if (confirmTradeBtn) {
     let offeredItem = null;
     
     if (tradeType === "BarterOnly" || tradeType === "BarterPlusMoney") {
-      offeredItem = allUserItems.find(item => item.id === userItemId);
+      offeredItem = allUserItems.find(item => (item._id || item.id).toString() === userItemId.toString());
       if (!offeredItem) {
         alert("Please select an item to trade");
         return;
@@ -428,20 +428,55 @@ if (confirmTradeBtn) {
     const diffPercentage = Math.abs((valueDiff / requestingValue) * 100);
     const fairnessScore = Math.max(0, 100 - diffPercentage);
     
-    // Create trade request
+    try {
+      // Try to save to backend first
+      const backendAvailable = await checkBackend();
+      if (backendAvailable && window.tradesAPI) {
+        const tradeData = {
+          requestedProduct: currentRequestedItem._id || currentRequestedItem.id,
+          offeredProduct: offeredItem ? (offeredItem._id || offeredItem.id) : null,
+          cashAmount: moneyAmount,
+          tradeType: tradeType,
+          message: `Trade request for ${currentRequestedItem.name}`
+        };
+        
+        const response = await tradesAPI.create(tradeData);
+        
+        // Show success message
+        if (window.ModalUtils) {
+          window.ModalUtils.showSuccess('Trade request sent successfully!', () => {
+            modal.classList.add("hidden");
+            currentRequestedItem = null;
+            loadRecentTrades(); // Reload trades
+          });
+        } else {
+          alert('Trade request sent successfully!');
+          modal.classList.add("hidden");
+          currentRequestedItem = null;
+          loadRecentTrades();
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Error creating trade via backend:', error);
+      alert('Error creating trade request. Please try again.');
+      return;
+    }
+    
+    // Fallback to localStorage if backend not available
     const tradeRequest = {
       id: Date.now(),
       requestedItem: {
-        id: currentRequestedItem.id,
+        id: currentRequestedItem._id || currentRequestedItem.id,
         name: currentRequestedItem.name,
         price: currentRequestedItem.price,
-        image: currentRequestedItem.image
+        image: currentRequestedItem.images?.[0]?.url || currentRequestedItem.image
       },
       offeredItem: offeredItem ? {
-        id: offeredItem.id,
+        id: offeredItem._id || offeredItem.id,
         name: offeredItem.name,
         price: offeredItem.price,
-        image: offeredItem.image
+        image: offeredItem.images?.[0]?.url || offeredItem.image
       } : null,
       moneyAmount: moneyAmount,
       tradeType: tradeType,
@@ -472,16 +507,7 @@ if (confirmTradeBtn) {
     localStorage.setItem("barterRequests", JSON.stringify(barterRequests));
     
     // Show success message
-    let message = `Trade request sent successfully!\n\n`;
-    message += `You're offering: `;
-    if (offeredItem) message += `${offeredItem.name}`;
-    if (moneyAmount > 0) message += ` + Ksh ${moneyAmount.toLocaleString()}`;
-    message += `\nFor: ${currentRequestedItem.name}\n`;
-    if (diffPercentage > 30) {
-      message += `\n⚠️ Note: This trade will be flagged for admin review due to large value difference.`;
-    }
-    
-    alert(message);
+    alert('Trade request sent successfully!');
     modal.classList.add("hidden");
     currentRequestedItem = null;
   });

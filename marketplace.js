@@ -39,16 +39,19 @@ const userItemPrice = document.getElementById("userItemPrice");
 
 // Load items from backend or localStorage
 async function loadItems() {
+  console.log('[MARKETPLACE] loadItems() called');
   itemsGrid.innerHTML = '<div class="col-span-full text-center py-12"><p class="text-gray-500 text-lg">Loading items...</p></div>';
   
   try {
     // Try to load from backend first
     if (useBackend && window.productsAPI) {
+      console.log('[MARKETPLACE] Checking backend availability...');
       const backendAvailable = await checkBackend();
+      console.log('[MARKETPLACE] Backend available:', backendAvailable);
       if (backendAvailable) {
-        console.log('Loading items from backend...');
+        console.log('[MARKETPLACE] Loading items from backend...');
         const response = await productsAPI.getAll();
-        console.log('Backend response:', response);
+        console.log('[MARKETPLACE] Backend response:', response);
         
         // Handle nested products array in response
         allItems = response.data?.products || response.data || response.products || response || [];
@@ -114,7 +117,7 @@ function renderItems(items) {
     card.className = "bg-white rounded-xl shadow hover:shadow-lg transition p-4";
     
     // Handle both backend and localStorage formats
-    const imageUrl = item.images?.[0]?.url || item.image || 'https://via.placeholder.com/200';
+    const imageUrl = item.images?.[0]?.url || item.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
     // Fix image URL for local uploads - ensure it points to backend server
     const fixedImageUrl = imageUrl.startsWith('http://localhost:5000') ? imageUrl : 
                          imageUrl.startsWith('/uploads/') ? `http://localhost:5000${imageUrl}` :
@@ -130,7 +133,7 @@ function renderItems(items) {
       <img src="${fixedImageUrl}" 
            alt="${item.name}" 
            class="w-full h-40 object-cover rounded-md mb-3"
-           onerror="this.src='https://via.placeholder.com/200?text=No+Image'">
+           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22200%22 height=%22200%22/%3E%3Ctext fill=%22%23999%22 font-family=%22sans-serif%22 font-size=%2216%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E'">
       <h4 class="text-lg font-semibold">${item.name}</h4>
       <p class="text-gray-600 font-bold">Ksh ${itemPrice.toLocaleString()}</p>
       <p class="text-sm text-gray-500">Condition: ${itemCondition}</p>
@@ -178,15 +181,25 @@ function applyFilters() {
 
 // Open modal
 function openModal(itemId) {
+  console.log('[MARKETPLACE] openModal called with itemId:', itemId);
+  console.log('[MARKETPLACE] Total items available:', allItems.length);
+  
   selectedMarketItem = allItems.find(item => (item._id || item.id).toString() === itemId.toString());
   
   if (!selectedMarketItem) {
-    alert("Item not found!");
+    console.error('[MARKETPLACE] Item not found with ID:', itemId);
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Item not found!");
+    } else {
+      alert("Item not found!");
+    }
     return;
   }
+  
+  console.log('[MARKETPLACE] Selected item:', selectedMarketItem.name);
 
   // Populate modal with selected item
-  const imageUrl = selectedMarketItem.images?.[0]?.url || selectedMarketItem.image || 'https://via.placeholder.com/200';
+  const imageUrl = selectedMarketItem.images?.[0]?.url || selectedMarketItem.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
   // Fix image URL for local uploads - ensure it points to backend server
   const fixedModalImageUrl = imageUrl.startsWith('http://localhost:5000') ? imageUrl : 
                              imageUrl.startsWith('/uploads/') ? `http://localhost:5000${imageUrl}` :
@@ -229,7 +242,9 @@ function openModal(itemId) {
   document.getElementById("priceComparison").classList.add("hidden");
 
   // Show modal
+  console.log('[MARKETPLACE] Opening trade modal');
   tradeModal.classList.remove("hidden");
+  console.log('[MARKETPLACE] Modal opened successfully');
 }
 
 function closeModal() {
@@ -258,7 +273,7 @@ function showItemComparison() {
   
   if (selectedUserItem) {
     // Show user item preview
-    const itemImage = selectedUserItem.images?.[0]?.url || selectedUserItem.image || 'https://via.placeholder.com/200';
+    const itemImage = selectedUserItem.images?.[0]?.url || selectedUserItem.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
     // Fix image URL for local uploads - ensure it points to backend server
     const fixedUserImageUrl = itemImage.startsWith('http://localhost:5000') ? itemImage : 
                               itemImage.startsWith('/uploads/') ? `http://localhost:5000${itemImage}` :
@@ -331,23 +346,119 @@ function showPriceComparison(wantPrice, offerPrice, isFullTopup = false) {
   comparisonSection.classList.remove("hidden");
 }
 
-function confirmTrade() {
+async function confirmTrade() {
   if (!selectedUserItem && !isFullTopup) {
-    alert("Select your item or choose Full Top-Up.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Select your item or choose Full Top-Up.");
+    } else {
+      alert("Select your item or choose Full Top-Up.");
+    }
     return;
   }
 
-  const trades = JSON.parse(localStorage.getItem("trades") || "[]");
-  trades.push({
-    id: Date.now(),
-    requestedItem: selectedMarketItem,
-    offeredItem: isFullTopup ? "Full Top-Up" : selectedUserItem,
-    status: "Pending"
-  });
-  localStorage.setItem("trades", JSON.stringify(trades));
+  try {
+    // Get current user
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user._id || user.id || user.user?._id || user.user?.id;
+    
+    if (!userId) {
+      if (window.ModalUtils) {
+        window.ModalUtils.showError("Please log in to create a trade request.", () => {
+          window.location.href = 'login.html';
+        });
+      } else {
+        alert("Please log in to create a trade request.");
+        window.location.href = 'login.html';
+      }
+      return;
+    }
 
-  alert("Trade request sent!");
-  closeModal();
+    // Determine trade type and prepare trade data
+    let tradeType;
+    let moneyAmount = 0;
+    let offeredItemId = null;
+
+    if (isFullTopup) {
+      tradeType = 'MoneyOnly';
+      moneyAmount = selectedMarketItem.price || 0;
+    } else if (selectedUserItem) {
+      const userItemPrice = selectedUserItem.price || 0;
+      const marketItemPrice = selectedMarketItem.price || 0;
+      const difference = marketItemPrice - userItemPrice;
+
+      if (difference > 0) {
+        tradeType = 'BarterPlusMoney';
+        moneyAmount = difference;
+        offeredItemId = selectedUserItem._id || selectedUserItem.id;
+      } else {
+        tradeType = 'BarterOnly';
+        offeredItemId = selectedUserItem._id || selectedUserItem.id;
+      }
+    }
+
+    const tradeData = {
+      requestedItemId: selectedMarketItem._id || selectedMarketItem.id,
+      tradeType: tradeType,
+      offeredItemId: offeredItemId,
+      moneyAmount: moneyAmount
+    };
+
+    console.log('Creating trade with data:', tradeData);
+    console.log('Checking backend availability...');
+
+    // Check if backend is available
+    const backendAvailable = await checkBackend();
+    console.log('Backend available:', backendAvailable);
+    console.log('tradesAPI exists:', !!window.tradesAPI);
+    
+    if (backendAvailable && window.tradesAPI) {
+      console.log('Sending trade request to:', 'http://localhost:5000/api/v1/trades');
+      // Send to backend
+      const response = await tradesAPI.create(tradeData);
+      console.log('Trade created response:', response);
+      
+      if (response.success || response.data) {
+        if (window.ModalUtils) {
+          window.ModalUtils.showSuccess(
+            response.message || "Trade request sent successfully! The seller will be notified."
+          );
+        } else {
+          alert("✅ Trade request sent successfully! The seller will be notified.");
+        }
+        closeModal();
+      } else {
+        throw new Error(response.message || 'Failed to create trade');
+      }
+    } else {
+      // Fallback to localStorage if backend is not available
+      console.warn('Backend not available, saving to localStorage');
+      const trades = JSON.parse(localStorage.getItem("trades") || "[]");
+      trades.push({
+        id: Date.now(),
+        requestedItem: selectedMarketItem,
+        offeredItem: isFullTopup ? "Full Top-Up" : selectedUserItem,
+        tradeType: tradeType,
+        moneyAmount: moneyAmount,
+        status: "Pending",
+        createdAt: new Date().toISOString()
+      });
+      localStorage.setItem("trades", JSON.stringify(trades));
+
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Trade request saved locally. It will be synced when the backend is available.");
+      } else {
+        alert("✅ Trade request saved locally. It will be synced when the backend is available.");
+      }
+      closeModal();
+    }
+  } catch (error) {
+    console.error('Error creating trade:', error);
+    if (window.ModalUtils) {
+      window.ModalUtils.showError(`Failed to create trade: ${error.message || 'Unknown error'}`);
+    } else {
+      alert(`❌ Failed to create trade: ${error.message || 'Unknown error'}`);
+    }
+  }
 }
 
 // Flag Modal Functions
@@ -357,7 +468,11 @@ function openFlagModal(itemId) {
   flaggedItem = allItems.find(item => (item._id || item.id).toString() === itemId.toString());
   
   if (!flaggedItem) {
-    alert("Item not found!");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Item not found!");
+    } else {
+      alert("Item not found!");
+    }
     return;
   }
 
@@ -384,12 +499,20 @@ async function submitFlag() {
   const comment = document.getElementById("flagComment").value;
   
   if (!reason) {
-    alert("Please select a reason for reporting this item.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Please select a reason for reporting this item.");
+    } else {
+      alert("Please select a reason for reporting this item.");
+    }
     return;
   }
   
   if (!flaggedItem) {
-    alert("No item selected.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("No item selected.");
+    } else {
+      alert("No item selected.");
+    }
     return;
   }
   
@@ -399,8 +522,14 @@ async function submitFlag() {
     const userId = user._id || user.id || user.user?._id || user.user?.id;
     
     if (!userId) {
-      alert("Please log in to report items.");
-      window.location.href = 'login.html';
+      if (window.ModalUtils) {
+        window.ModalUtils.showError("Please log in to report items.", () => {
+          window.location.href = 'login.html';
+        });
+      } else {
+        alert("Please log in to report items.");
+        window.location.href = 'login.html';
+      }
       return;
     }
     
@@ -419,7 +548,11 @@ async function submitFlag() {
     if (backendAvailable && window.api) {
       // Send to backend
       await api.post('/reports', flagData);
-      alert("✅ Thank you for your report! Our team will review this item.");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Thank you for your report! Our team will review this item.");
+      } else {
+        alert("✅ Thank you for your report! Our team will review this item.");
+      }
     } else {
       // Store locally as fallback
       const reports = JSON.parse(localStorage.getItem('itemReports') || '[]');
@@ -428,13 +561,21 @@ async function submitFlag() {
         timestamp: new Date().toISOString()
       });
       localStorage.setItem('itemReports', JSON.stringify(reports));
-      alert("✅ Report saved! It will be submitted when the backend is available.");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Report saved! It will be submitted when the backend is available.");
+      } else {
+        alert("✅ Report saved! It will be submitted when the backend is available.");
+      }
     }
     
     closeFlagModal();
   } catch (error) {
     console.error('Error submitting flag:', error);
-    alert("Failed to submit report. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to submit report. Please try again.");
+    } else {
+      alert("Failed to submit report. Please try again.");
+    }
   }
 }
 

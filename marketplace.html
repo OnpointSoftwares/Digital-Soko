@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Marketplace - Digital Soko</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="js/modal-utils.js"></script>
   <script src="js/price-checker.js"></script>
   <link rel="stylesheet" href="css/background-styles.css">
 </head>
 <body class="min-h-screen">
-
   <!-- Clear Background for authenticated pages -->
   <div class="soko-background clear">
     <div class="floating-elements"></div>
@@ -22,7 +22,9 @@
 
       <!-- Menu -->
       <div class="relative">
-        <button id="menuBtn" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500 flex items-center gap-2">☰ Menu</button>
+        <button id="menuBtn" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500 flex items-center gap-2">
+          ☰ Menu
+        </button>
         <div id="menuDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white text-gray-800 rounded shadow-lg z-50">
           <a href="dashboard.html" class="block px-4 py-2 hover:bg-gray-100">🏠 Dashboard</a>
           <a href="my-items.html" class="block px-4 py-2 hover:bg-gray-100">📦 My Items</a>
@@ -68,7 +70,9 @@
         <input type="number" id="maxPrice" placeholder="100000" class="w-full border px-3 py-2 rounded">
       </div>
     </div>
-    <button id="applyFilters" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Apply Filters</button>
+    <button id="applyFilters" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+      Apply Filters
+    </button>
   </section>
 
   <!-- Items Grid -->
@@ -80,9 +84,11 @@
   <!-- Trade Modal -->
   <div id="tradeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white rounded-xl shadow-lg w-11/12 max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto">
-      <button onclick="closeModal()" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-2xl">✖</button>
+      <button onclick="closeModal()" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-2xl">
+        ✖
+      </button>
       <h2 class="text-2xl font-bold mb-6">Propose Trade - Item Comparison</h2>
-
+      
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Marketplace Item -->
         <div class="p-4 border-2 border-blue-500 rounded-lg bg-blue-50">
@@ -137,7 +143,9 @@
       </div>
 
       <div class="mt-6 flex justify-between items-center">
-        <button onclick="closeModal()" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">Cancel</button>
+        <button onclick="closeModal()" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
+          Cancel
+        </button>
         <button onclick="confirmTrade()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
           ✓ Confirm Trade Request
         </button>
@@ -149,12 +157,10 @@
   <div id="flagModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
     <div class="bg-white p-6 rounded-xl shadow-2xl w-11/12 md:w-1/2 max-w-lg">
       <h2 class="text-2xl font-bold mb-4 text-gray-800">🚩 Report Item Pricing</h2>
-      
       <div id="flagItemDetails" class="bg-gray-50 p-4 rounded-lg mb-4">
         <p class="font-semibold text-lg" id="flagItemName"></p>
         <p class="text-blue-600 font-bold" id="flagItemPrice"></p>
       </div>
-
       <div class="mb-4">
         <label class="block font-semibold mb-2 text-gray-700">Report Reason</label>
         <select id="flagReason" class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none">
@@ -165,14 +171,14 @@
           <option value="other">❓ Other pricing concern</option>
         </select>
       </div>
-
       <div class="mb-4">
         <label class="block font-semibold mb-2 text-gray-700">Additional Details (Optional)</label>
         <textarea id="flagComment" rows="3" class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none" placeholder="Provide more details about the pricing issue..."></textarea>
       </div>
-
       <div class="flex justify-between items-center">
-        <button onclick="closeFlagModal()" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">Cancel</button>
+        <button onclick="closeFlagModal()" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
+          Cancel
+        </button>
         <button onclick="submitFlag()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
           🚩 Submit Report
         </button>
@@ -181,22 +187,23 @@
   </div>
 
   <script src="js/api.js"></script>
-  <script src="marketplace.js?v=2"></script>
+  <script src="marketplace.js"></script>
   <script>
     // Navbar dropdown toggle
     document.addEventListener("DOMContentLoaded", () => {
       const btn = document.getElementById("menuBtn");
       const dropdown = document.getElementById("menuDropdown");
-      btn.addEventListener("click", () => dropdown.classList.toggle("hidden"));
-      document.addEventListener("click", (e) => {
-        if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
-          dropdown.classList.add("hidden");
-        }
-      });
+      
+      if (btn && dropdown) {
+        btn.addEventListener("click", () => dropdown.classList.toggle("hidden"));
+        
+        document.addEventListener("click", (e) => {
+          if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add("hidden");
+          }
+        });
+      }
     });
   </script>
 </body>
 </html>
-
-
-

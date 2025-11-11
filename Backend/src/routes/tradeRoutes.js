@@ -59,13 +59,12 @@ router.post('/', createTradeValidation, validate, createTrade);
 // Get single trade
 router.get('/:id', validateObjectId, validate, getTrade);
 
-// Approve trade (Admin only)
-router.put('/:id/approve', authorize('admin'), validateObjectId, validate, approveTrade);
+// Approve trade (Seller or Admin)
+router.put('/:id/approve', validateObjectId, validate, approveTrade);
 
-// Reject trade (Admin only)
+// Reject trade (Seller or Admin)
 router.put(
   '/:id/reject',
-  authorize('admin'),
   validateObjectId,
   rejectTradeValidation,
   validate,

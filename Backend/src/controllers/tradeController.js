@@ -172,9 +172,9 @@ exports.getTrade = async (req, res, next) => {
 };
 
 /**
- * @desc    Approve trade (Admin only)
+ * @desc    Approve trade (Seller or Admin)
  * @route   PUT /api/v1/trades/:id/approve
- * @access  Private/Admin
+ * @access  Private
  */
 exports.approveTrade = async (req, res, next) => {
   try {
@@ -182,6 +182,14 @@ exports.approveTrade = async (req, res, next) => {
 
     if (!trade) {
       return next(new AppError('Trade not found', 404));
+    }
+
+    // Check authorization - only seller or admin can approve
+    if (
+      req.user.role !== 'admin' &&
+      trade.seller.toString() !== req.user._id.toString()
+    ) {
+      return next(new AppError('Only the seller or admin can approve this trade', 403));
     }
 
     if (trade.status !== 'Pending') {
@@ -205,9 +213,9 @@ exports.approveTrade = async (req, res, next) => {
 };
 
 /**
- * @desc    Reject trade (Admin only)
+ * @desc    Reject trade (Seller or Admin)
  * @route   PUT /api/v1/trades/:id/reject
- * @access  Private/Admin
+ * @access  Private
  */
 exports.rejectTrade = async (req, res, next) => {
   try {
@@ -216,6 +224,14 @@ exports.rejectTrade = async (req, res, next) => {
 
     if (!trade) {
       return next(new AppError('Trade not found', 404));
+    }
+
+    // Check authorization - only seller or admin can reject
+    if (
+      req.user.role !== 'admin' &&
+      trade.seller.toString() !== req.user._id.toString()
+    ) {
+      return next(new AppError('Only the seller or admin can reject this trade', 403));
     }
 
     if (trade.status !== 'Pending') {

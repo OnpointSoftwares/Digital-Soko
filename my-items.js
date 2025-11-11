@@ -112,7 +112,7 @@ async function loadMyItems() {
     card.className = "bg-white p-4 rounded-lg shadow hover:shadow-lg transition";
     
     // Handle both backend and localStorage formats
-    const imageUrl = item.images?.[0]?.url || item.image || 'https://via.placeholder.com/200';
+    const imageUrl = item.images?.[0]?.url || item.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
     const itemId = item._id || item.id;
     const itemPrice = item.price || 0;
     const itemCondition = item.condition || 'N/A';
@@ -122,7 +122,7 @@ async function loadMyItems() {
       <img src="${imageUrl}" 
            alt="${item.name}" 
            class="w-full h-40 object-cover rounded-md mb-3"
-           onerror="this.src='https://via.placeholder.com/200?text=No+Image'">
+           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22200%22 height=%22200%22/%3E%3Ctext fill=%22%23999%22 font-family=%22sans-serif%22 font-size=%2216%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E'">
       <h3 class="text-lg font-bold">${item.name}</h3>
       <p class="text-gray-600">Condition: ${itemCondition}</p>
       <p class="text-gray-600">Category: ${itemCategory}</p>

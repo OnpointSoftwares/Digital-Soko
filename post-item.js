@@ -91,16 +91,16 @@ async function loadItemForEdit(itemId) {
       }
       
       // Pre-fill form with existing data
-      document.getElementById("itemName").value = currentEditItem.name;
+      document.getElementById("itemName").value = currentEditItem.name || "";
       document.getElementById("itemDesc").value = currentEditItem.description || "";
-      document.getElementById("itemCategory").value = currentEditItem.category;
-      document.getElementById("itemCondition").value = currentEditItem.condition;
-      document.getElementById("itemPrice").value = currentEditItem.price;
-      document.getElementById("itemTradeType").value = currentEditItem.tradeType;
+      document.getElementById("itemCategory").value = currentEditItem.category || "";
+      document.getElementById("itemCondition").value = currentEditItem.condition || "";
+      document.getElementById("itemPrice").value = currentEditItem.price || "";
+      document.getElementById("itemTradeType").value = currentEditItem.tradeType || "";
       
       // Show existing image if available
       const imageUrl = currentEditItem.images?.[0]?.url || currentEditItem.image;
-      if (imageUrl && imageUrl !== "https://via.placeholder.com/200?text=No+Image") {
+      if (imageUrl && !imageUrl.includes('data:image/svg+xml')) {
         document.getElementById("previewImg").src = imageUrl;
         imagePreview.classList.remove("hidden");
       }
@@ -128,6 +128,11 @@ document.getElementById("postItemForm").addEventListener("submit", async functio
     return;
   }
 
+  if (isNaN(itemPrice) || itemPrice <= 0) {
+    alert("Please enter a valid price!");
+    return;
+  }
+
   // Get current user and token
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const token = localStorage.getItem('token') || user.token;
@@ -145,13 +150,16 @@ document.getElementById("postItemForm").addEventListener("submit", async functio
   
   // Ensure token is set in API client
   if (window.api && token) {
-    api.setToken(token);
-    // Also store it in localStorage for future use
-    localStorage.setItem('token', token);
+    if (typeof api.setToken === 'function') {
+      api.setToken(token);
+    }
   }
+  // Store it in localStorage for future use
+  localStorage.setItem('token', token);
 
   // Disable submit button
   const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn.textContent;
   submitBtn.disabled = true;
   submitBtn.textContent = isEditMode ? 'Updating...' : 'Posting...';
 
@@ -163,13 +171,12 @@ document.getElementById("postItemForm").addEventListener("submit", async functio
     console.error('Error saving item:', error);
     alert('Failed to save item: ' + error.message);
     submitBtn.disabled = false;
-    submitBtn.textContent = isEditMode ? 'Update Item' : 'Post Item';
+    submitBtn.textContent = originalText;
   }
-
 });
 
 async function saveItemToDatabase(itemName, itemDesc, itemCategory, itemCondition, itemPrice, itemTradeType, imageFile) {
-  // Check backend availability
+  // Check API availability
   if (!window.productsAPI) {
     throw new Error('API client not available');
   }
@@ -178,24 +185,6 @@ async function saveItemToDatabase(itemName, itemDesc, itemCategory, itemConditio
   if (!backendAvailable) {
     throw new Error('Backend server is not running');
   }
-
-  // Get category-specific default image
-  const categoryImages = {
-    'Electronics': 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=500',
-    'Clothing': 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=500',
-    'Books': 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=500',
-    'Home & Garden': 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=500',
-    'Sports': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=500',
-    'Toys': 'https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=500',
-    'Beauty': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500',
-    'Automotive': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=500',
-    'Food': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500',
-    'Furniture': 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=500',
-    'Other': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'
-  };
-
-  // Use category image or generic placeholder
-  const defaultImageUrl = categoryImages[itemCategory] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500';
 
   try {
     if (isEditMode && currentEditItem) {
@@ -229,11 +218,33 @@ async function saveItemToDatabase(itemName, itemDesc, itemCategory, itemConditio
         await productsAPI.update(productId, productData);
       }
       
-      showSuccessModal("Item updated successfully in database!");
+      showSuccessModal("Item updated successfully!");
     } else {
       // Create new item
+      const productData = {
+        name: itemName,
+        description: itemDesc,
+        category: itemCategory,
+        condition: itemCondition,
+        price: itemPrice,
+        tradeType: itemTradeType,
+        stock: 1
+      };
+      
+      // Check price and auto-approve
+      const approvalResult = await checkPriceAndAutoApprove(productData);
+      
+      // Add approval status to product data
+      productData.approvalStatus = approvalResult.approved ? 'approved' : 'pending';
+      if (approvalResult.reason) {
+        productData.approvalReason = approvalResult.reason;
+      }
+      if (approvalResult.analysis) {
+        productData.priceAnalysis = approvalResult.analysis;
+      }
+      
+      // Handle image upload
       if (imageFile) {
-        // Create FormData with image and other fields
         const formData = new FormData();
         formData.append('images', imageFile);
         formData.append('name', itemName);
@@ -243,27 +254,32 @@ async function saveItemToDatabase(itemName, itemDesc, itemCategory, itemConditio
         formData.append('price', itemPrice);
         formData.append('tradeType', itemTradeType);
         formData.append('stock', 1);
+        formData.append('approvalStatus', productData.approvalStatus);
+        if (productData.approvalReason) {
+          formData.append('approvalReason', productData.approvalReason);
+        }
         
         await productsAPI.createWithImages(formData);
       } else {
-        // Create without image, use default
-        const productData = {
-          name: itemName,
-          description: itemDesc,
-          category: itemCategory,
-          condition: itemCondition,
-          price: itemPrice,
-          tradeType: itemTradeType,
-          stock: 1,
-          images: [{
-            public_id: 'category_default_' + Date.now(),
-            url: defaultImageUrl
-          }]
-        };
         await productsAPI.create(productData);
       }
       
-      showSuccessModal("Item posted successfully to database!");
+      // Show appropriate success message based on approval
+      if (approvalResult.approved) {
+        showApprovalModal(
+          "Item posted and automatically approved!", 
+          approvalResult.reason, 
+          approvalResult.analysis
+        );
+      } else {
+        showApprovalModal(
+          "Item posted for review", 
+          approvalResult.reason, 
+          approvalResult.analysis
+        );
+      }
+      
+      // Reset form
       document.getElementById("postItemForm").reset();
       imagePreview.classList.add("hidden");
     }
@@ -273,27 +289,163 @@ async function saveItemToDatabase(itemName, itemDesc, itemCategory, itemConditio
   }
 }
 
+// Auto-approval system - Only reject overpriced items
+async function checkPriceAndAutoApprove(itemData) {
+  if (!window.priceChecker) {
+    return { 
+      approved: true, 
+      reason: "Price checker not available - Auto-approved", 
+      skipCheck: true 
+    };
+  }
+
+  try {
+    const result = await window.priceChecker.checkAndAutoApprove(
+      itemData,
+      (reason, analysis) => {
+        // Auto-approved callback
+        console.log('Item auto-approved:', reason);
+      },
+      (reason, analysis) => {
+        // Auto-rejected callback (overpriced items only)
+        console.log('Item auto-rejected (overpriced):', reason);
+      }
+    );
+
+    // If no result, default to approved
+    if (!result) {
+      return { 
+        approved: true, 
+        reason: "No price data available - Auto-approved" 
+      };
+    }
+
+    // Only reject if explicitly marked as overpriced
+    // Check if the analysis indicates overpricing
+    const isOverpriced = result.analysis && 
+                        (result.analysis.assessment?.toLowerCase().includes('overpriced') ||
+                         result.analysis.assessment?.toLowerCase().includes('too high') ||
+                         result.analysis.assessment?.toLowerCase().includes('expensive'));
+    
+    if (isOverpriced && !result.approved) {
+      // Item is overpriced - reject it
+      return {
+        approved: false,
+        reason: result.reason || "Price is significantly higher than market value",
+        analysis: result.analysis
+      };
+    }
+    
+    // All other cases (fairly priced, underpriced, or uncertain) - approve
+    return {
+      approved: true,
+      reason: result.reason || "Price is within acceptable range",
+      analysis: result.analysis
+    };
+    
+  } catch (error) {
+    console.error('Auto-approval check failed:', error);
+    // On error, default to approved (fail open)
+    return { 
+      approved: true, 
+      reason: "Price verification unavailable - Auto-approved", 
+      skipCheck: true 
+    };
+  }
+}
+
+// Approval Modal Functions
+function showApprovalModal(title, reason, analysis) {
+  if (!window.ModalUtils) {
+    showSuccessModal(title);
+    return;
+  }
+
+  // Debug: Log what we're receiving
+  console.log('Post-item modal debug - analysis:', analysis);
+  console.log('Post-item modal debug - priceSources:', analysis?.priceSources);
+  console.log('Post-item modal debug - shops:', analysis?.shops);
+  
+  // Build sources HTML if available
+  let sourcesHtml = '';
+  if (analysis && analysis.priceSources && Array.isArray(analysis.priceSources) && analysis.priceSources.length > 0) {
+    sourcesHtml = `<div class="mt-1 p-1 bg-blue-50 rounded text-xs">
+         <span class="text-blue-700">${analysis.priceSources.slice(0, 2).join(' • ')}</span>
+       </div>`;
+  }
+
+  // Build analysis HTML if available
+  let analysisHtml = '';
+  if (analysis && analysis.assessment) {
+    const confidence = analysis.confidence || 0;
+    analysisHtml = `<div class="mt-1 p-1 bg-gray-50 rounded">
+         <p class="text-xs text-gray-700">${analysis.assessment} (${confidence}/10)</p>
+       </div>`;
+  }
+
+  const content = `
+    <div class="text-left">
+      ${sourcesHtml}
+      ${analysisHtml}
+    </div>
+  `;
+
+  // Show success modal first
+  window.ModalUtils.showSuccess(title, () => {
+    // Redirect to My Items page after closing
+    window.location.href = "my-items.html";
+  });
+  
+  // Show detailed analysis if available (without blocking redirect)
+  if (analysis && (sourcesHtml || analysisHtml)) {
+    setTimeout(() => {
+      window.ModalUtils.showInfo('Detailed Analysis', content);
+    }, 500);
+  }
+}
+
 // Success Modal Functions
 function showSuccessModal(message) {
-  const modal = document.getElementById("successModal");
-  const messageEl = document.getElementById("successMessage");
-  messageEl.textContent = message;
-  modal.classList.remove("hidden");
+  if (window.ModalUtils) {
+    window.ModalUtils.showSuccess(message, () => {
+      // Redirect to My Items page after success
+      window.location.href = "my-items.html";
+    });
+  } else {
+    // Fallback to original modal
+    const modal = document.getElementById("successModal");
+    const messageEl = document.getElementById("successMessage");
+    if (modal && messageEl) {
+      messageEl.textContent = message;
+      modal.classList.remove("hidden");
+    }
+  }
 }
 
 function closeSuccessModal() {
   const modal = document.getElementById("successModal");
-  modal.classList.add("hidden");
-  // Redirect to My Items page
-  setTimeout(() => {
+  if (modal) {
+    modal.classList.add("hidden");
+    // Redirect to My Items page
     window.location.href = "my-items.html";
-  }, 300);
+  }
 }
+
+// Attach close modal handler if modal exists
+document.addEventListener('DOMContentLoaded', function() {
+  const closeBtn = document.getElementById("closeSuccessModal");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", closeSuccessModal);
+  }
+});
 
 // Mobile Menu Toggle (if needed)
 const menuToggle = document.getElementById("menu-toggle");
 if (menuToggle) {
   menuToggle.addEventListener("click", () => {
-    document.getElementById("mobile-menu").classList.toggle("hidden");
+    const mobileMenu = document.getElementById("mobile-menu");
+    if (mobileMenu) {
+      mobileMenu.classList.toggle("hidden");
+    }
   });
 }

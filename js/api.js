@@ -42,9 +42,15 @@ class APIClient {
       headers,
     };
 
+    console.log(`[API] ${options.method || 'GET'} ${url}`);
+    console.log('[API] Request body:', options.body);
+    console.log('[API] Auth token present:', !!token);
+
     try {
       const response = await fetch(url, config);
+      console.log(`[API] Response status: ${response.status} ${response.statusText}`);
       const data = await response.json();
+      console.log('[API] Response data:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'API request failed');

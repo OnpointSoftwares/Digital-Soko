@@ -259,7 +259,7 @@ function renderItemsTable() {
 function renderTradesTable() {
   const tbody = document.getElementById("tradesTableBody");
 
-  if (allTrades.length === 0) {
+  if (!allTrades || allTrades.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="8" class="text-center py-8 text-gray-500">No trades found</td>
@@ -268,92 +268,120 @@ function renderTradesTable() {
     return;
   }
 
+  console.log('Rendering trades:', allTrades); // Debug log
+
   tbody.innerHTML = allTrades.map(trade => {
-    const requestedItemName = trade.requestedItem?.name || 'Unknown Item';
-    const requestedPrice = trade.requestedItem?.price || trade.requestingValue || 0;
+    try {
+      // Safely get trade properties with fallbacks
+      const tradeId = trade._id || trade.id || 'N/A';
+      const tradeStatus = trade.status || 'Pending';
+      
+      // Handle requested item
+      const requestedItem = trade.requestedItem || {};
+      const requestedItemName = requestedItem.name || 'Unknown Item';
+      const requestedPrice = requestedItem.price || trade.requestingValue || 0;
 
-    let offeredDescription = '';
-    let offeredValue = trade.offeringValue || 0;
+      // Handle offered item and trade type
+      let offeredDescription = 'N/A';
+      let offeredValue = 0;
+      let tradeType = trade.tradeType || 'BarterOnly'; // Default to BarterOnly if not specified
 
-    if (trade.tradeType === 'BarterOnly' && trade.offeredItem) {
-      offeredDescription = `${trade.offeredItem.name} (Ksh ${trade.offeredItem.price.toLocaleString()})`;
-      offeredValue = trade.offeredItem.price;
-    } else if (trade.tradeType === 'MoneyOnly') {
-      offeredDescription = `Cash: Ksh ${trade.moneyAmount.toLocaleString()}`;
-      offeredValue = trade.moneyAmount;
-    } else if (trade.tradeType === 'BarterPlusMoney' && trade.offeredItem) {
-      offeredDescription = `${trade.offeredItem.name} + Ksh ${trade.moneyAmount.toLocaleString()}`;
-      offeredValue = trade.offeredItem.price + trade.moneyAmount;
-    } else {
-      // Fallback for old format
-      offeredDescription = typeof trade.offeredItem === 'string'
-        ? trade.offeredItem
-        : trade.offeredItem?.name || 'Unknown';
+      if (trade.tradeType === 'MoneyOnly' || trade.moneyAmount > 0) {
+        tradeType = 'MoneyOnly';
+        offeredDescription = `Cash: Ksh ${(trade.moneyAmount || 0).toLocaleString()}`;
+        offeredValue = trade.moneyAmount || 0;
+      } 
+      else if (trade.offeredItem) {
+        const offeredItem = trade.offeredItem;
+        const itemName = offeredItem.name || 'Item';
+        const itemPrice = offeredItem.price || 0;
+        
+        if (trade.moneyAmount > 0) {
+          tradeType = 'BarterPlusMoney';
+          offeredDescription = `${itemName} + Ksh ${trade.moneyAmount.toLocaleString()}`;
+          offeredValue = itemPrice + trade.moneyAmount;
+        } else {
+          tradeType = 'BarterOnly';
+          offeredDescription = itemName;
+          offeredValue = itemPrice;
+        }
+      }
+
+      // Calculate value difference and fairness score
+      const valueDiff = trade.valueDifference !== undefined ? trade.valueDifference : (offeredValue - requestedPrice);
+      const diffPercentage = requestedPrice > 0 ? Math.abs((valueDiff / requestedPrice) * 100) : 0;
+      const fairnessScore = trade.fairnessScore || Math.max(0, 100 - diffPercentage).toFixed(1);
+      const needsReview = trade.needsReview || diffPercentage > 30;
+
+      return `
+        <tr class="hover:bg-gray-50 ${needsReview ? 'bg-red-50' : ''}" data-trade-id="${tradeId}">
+          <td class="border p-3">#${tradeId}</td>
+          <td class="border p-3">
+            <div class="font-semibold">${requestedItemName}</div>
+            <div class="text-xs text-gray-600">Ksh ${Number(requestedPrice).toLocaleString()}</div>
+          </td>
+          <td class="border p-3">
+            <div class="text-sm">${offeredDescription}</div>
+            <div class="text-xs text-gray-600">Total: Ksh ${Number(offeredValue).toLocaleString()}</div>
+          </td>
+          <td class="border p-3">
+            <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+              ${tradeType}
+            </span>
+          </td>
+          <td class="border p-3 text-center">
+            <div class="font-semibold ${valueDiff >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${valueDiff >= 0 ? '+' : ''}Ksh ${Math.abs(valueDiff).toLocaleString()}
+            </div>
+            <div class="text-xs text-gray-500">${diffPercentage.toFixed(1)}%</div>
+          </td>
+          <td class="border p-3 text-center">
+            <div class="font-bold ${fairnessScore >= 70 ? 'text-green-600' : fairnessScore >= 50 ? 'text-yellow-600' : 'text-red-600'}">
+              ${fairnessScore}%
+            </div>
+            ${needsReview ? '<div class="text-xs text-red-600 font-semibold">⚠️ Review</div>' : ''}
+          </td>
+          <td class="border p-3">
+            <span class="px-2 py-1 rounded text-xs ${
+              tradeStatus === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+              tradeStatus === 'Approved' ? 'bg-green-100 text-green-800' :
+              'bg-red-100 text-red-800'
+            }">
+              ${tradeStatus}
+            </span>
+          </td>
+          <td class="border p-3">
+            <div class="flex gap-2">
+              <button onclick="viewTradeDetails('${tradeId}')" class="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600">
+                👁️ View
+              </button>
+              ${tradeStatus === 'Pending' ? `
+                <button onclick="approveTrade('${tradeId}')" class="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">
+                  ✓ Approve
+                </button>
+                <button onclick="rejectTrade('${tradeId}')" class="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600">
+                  ✗ Reject
+                </button>
+              ` : `
+                <button onclick="deleteTrade('${tradeId}')" class="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600">
+                  🗑️ Delete
+                </button>
+              `}
+            </div>
+          </td>
+        </tr>
+      `;
+    } catch (error) {
+      console.error('Error rendering trade:', trade, error);
+      return `
+        <tr class="bg-red-50">
+          <td colspan="8" class="border p-3 text-red-600">
+            Error rendering trade: ${error.message}
+            <pre class="text-xs mt-2 overflow-auto max-h-20">${JSON.stringify(trade, null, 2)}</pre>
+          </td>
+        </tr>
+      `;
     }
-
-    const valueDiff = trade.valueDifference || (offeredValue - requestedPrice);
-    const diffPercentage = requestedPrice > 0 ? Math.abs((valueDiff / requestedPrice) * 100) : 0;
-    const fairnessScore = trade.fairnessScore || Math.max(0, 100 - diffPercentage).toFixed(1);
-    const needsReview = trade.needsReview || diffPercentage > 30;
-
-    return `
-      <tr class="hover:bg-gray-50 ${needsReview ? 'bg-red-50' : ''}">
-        <td class="border p-3">#${trade.id}</td>
-        <td class="border p-3">
-          <div class="font-semibold">${requestedItemName}</div>
-          <div class="text-xs text-gray-600">Ksh ${requestedPrice.toLocaleString()}</div>
-        </td>
-        <td class="border p-3">
-          <div class="text-sm">${offeredDescription}</div>
-          <div class="text-xs text-gray-600">Total: Ksh ${offeredValue.toLocaleString()}</div>
-        </td>
-        <td class="border p-3">
-          <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
-            ${trade.tradeType || 'N/A'}
-          </span>
-        </td>
-        <td class="border p-3 text-center">
-          <div class="font-semibold ${valueDiff >= 0 ? 'text-green-600' : 'text-red-600'}">
-            ${valueDiff >= 0 ? '+' : ''}Ksh ${Math.abs(valueDiff).toLocaleString()}
-          </div>
-          <div class="text-xs text-gray-500">${diffPercentage.toFixed(1)}%</div>
-        </td>
-        <td class="border p-3 text-center">
-          <div class="font-bold ${fairnessScore >= 70 ? 'text-green-600' : fairnessScore >= 50 ? 'text-yellow-600' : 'text-red-600'}">
-            ${fairnessScore}%
-          </div>
-          ${needsReview ? '<div class="text-xs text-red-600 font-semibold">⚠️ Review</div>' : ''}
-        </td>
-        <td class="border p-3">
-          <span class="px-2 py-1 rounded text-xs ${
-            trade.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-            trade.status === 'Approved' ? 'bg-green-100 text-green-800' :
-            'bg-red-100 text-red-800'
-          }">
-            ${trade.status}
-          </span>
-        </td>
-        <td class="border p-3">
-          <div class="flex gap-2">
-            <button onclick="viewTradeDetails(${trade.id})" class="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600">
-              👁️ View
-            </button>
-            ${trade.status === 'Pending' ? `
-              <button onclick="approveTrade(${trade.id})" class="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">
-                ✓ Approve
-              </button>
-              <button onclick="rejectTrade(${trade.id})" class="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600">
-                ✗ Reject
-              </button>
-            ` : `
-              <button onclick="deleteTrade(${trade.id})" class="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600">
-                🗑️ Delete
-              </button>
-            `}
-          </div>
-        </td>
-      </tr>
-    `;
   }).join('');
 }
 
@@ -573,7 +601,11 @@ function renderPriceRangeChart() {
 function viewReport(reportId) {
   const report = allReports.find(r => (r._id || r.id) === reportId);
   if (!report) {
-    alert("Report not found!");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Report not found!");
+    } else {
+      alert("Report not found!");
+    }
     return;
   }
 
@@ -641,7 +673,11 @@ function viewReport(reportId) {
     details += `📅 REVIEWED DATE:\n${new Date(report.reviewedAt).toLocaleString()}\n\n`;
   }
 
-  alert(details);
+  if (window.ModalUtils) {
+    window.ModalUtils.showInfo("Report Details", `<pre style="white-space: pre-wrap; font-family: monospace; text-align: left;">${details}</pre>`);
+  } else {
+    alert(details);
+  }
 }
 
 async function resolveReport(reportId) {
@@ -650,11 +686,15 @@ async function resolveReport(reportId) {
   try {
     const backendAvailable = await checkBackend();
     if (backendAvailable && typeof window.reportsAPI !== 'undefined') {
-      await window.reportsAPI.updateStatus(reportId, {
+      await window.reportsAPI.update(reportId, {
         status: 'resolved',
         adminNotes: notes || 'Resolved by admin'
       });
-      alert("✅ Report resolved successfully!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Report resolved successfully!");
+      } else {
+        alert("✅ Report resolved successfully!");
+      }
     } else {
       // Update locally
       const report = allReports.find(r => (r._id || r.id) === reportId);
@@ -664,14 +704,22 @@ async function resolveReport(reportId) {
         report.reviewedBy = 'Admin';
         report.reviewedAt = new Date().toISOString();
         localStorage.setItem('itemReports', JSON.stringify(allReports));
-        alert("✅ Report resolved successfully!");
+        if (window.ModalUtils) {
+          window.ModalUtils.showSuccess("Report resolved successfully!");
+        } else {
+          alert("✅ Report resolved successfully!");
+        }
       }
     }
 
     loadDashboardData();
   } catch (error) {
     console.error('Error resolving report:', error);
-    alert("Failed to resolve report. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to resolve report. Please try again.");
+    } else {
+      alert("Failed to resolve report. Please try again.");
+    }
   }
 }
 
@@ -685,7 +733,11 @@ async function dismissReport(reportId) {
         status: 'dismissed',
         adminNotes: reason || 'Dismissed by admin'
       });
-      alert("❌ Report dismissed!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Report dismissed!");
+      } else {
+        alert("❌ Report dismissed!");
+      }
     } else {
       // Update locally
       const report = allReports.find(r => (r._id || r.id) === reportId);
@@ -695,14 +747,22 @@ async function dismissReport(reportId) {
         report.reviewedBy = 'Admin';
         report.reviewedAt = new Date().toISOString();
         localStorage.setItem('itemReports', JSON.stringify(allReports));
-        alert("❌ Report dismissed!");
+        if (window.ModalUtils) {
+          window.ModalUtils.showSuccess("Report dismissed!");
+        } else {
+          alert("❌ Report dismissed!");
+        }
       }
     }
 
     loadDashboardData();
   } catch (error) {
     console.error('Error dismissing report:', error);
-    alert("Failed to dismiss report. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to dismiss report. Please try again.");
+    } else {
+      alert("Failed to dismiss report. Please try again.");
+    }
   }
 }
 
@@ -713,18 +773,30 @@ async function deleteReport(reportId) {
     const backendAvailable = await checkBackend();
     if (backendAvailable && typeof window.reportsAPI !== 'undefined') {
       await window.reportsAPI.delete(reportId);
-      alert("🗑️ Report deleted successfully!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Report deleted successfully!");
+      } else {
+        alert("🗑️ Report deleted successfully!");
+      }
     } else {
       // Delete locally
       allReports = allReports.filter(r => (r._id || r.id) !== reportId);
       localStorage.setItem('itemReports', JSON.stringify(allReports));
-      alert("🗑️ Report deleted successfully!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Report deleted successfully!");
+      } else {
+        alert("🗑️ Report deleted successfully!");
+      }
     }
 
     loadDashboardData();
   } catch (error) {
     console.error('Error deleting report:', error);
-    alert("Failed to delete report. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to delete report. Please try again.");
+    } else {
+      alert("Failed to delete report. Please try again.");
+    }
   }
 }
 
@@ -732,11 +804,21 @@ async function deleteReport(reportId) {
 function viewItem(itemId) {
   const item = allItems.find(i => i.id === itemId);
   if (!item) {
-    alert("Item not found!");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Item not found!");
+    } else {
+      alert("Item not found!");
+    }
     return;
   }
 
-  alert(`Item Details:\n\nName: ${item.name}\nPrice: Ksh ${item.price.toLocaleString()}\nCondition: ${item.condition}\nCategory: ${item.category || 'N/A'}\nTrade Type: ${item.tradeType || 'Full Amount'}\nDescription: ${item.description || 'No description'}`);
+  const itemDetails = `Name: ${item.name}\nPrice: Ksh ${item.price.toLocaleString()}\nCondition: ${item.condition}\nCategory: ${item.category || 'N/A'}\nTrade Type: ${item.tradeType || 'Full Amount'}\nDescription: ${item.description || 'No description'}`;
+  
+  if (window.ModalUtils) {
+    window.ModalUtils.showInfo("Item Details", `<pre style="white-space: pre-wrap; font-family: monospace; text-align: left;">${itemDetails}</pre>`);
+  } else {
+    alert(`Item Details:\n\n${itemDetails}`);
+  }
 }
 
 // Delete item
@@ -759,18 +841,30 @@ async function confirmDelete() {
     const backendAvailable = await checkBackend();
     if (backendAvailable && typeof window.productsAPI !== 'undefined') {
       await window.productsAPI.delete(itemToDelete);
-      alert("Item deleted successfully!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Item deleted successfully!");
+      } else {
+        alert("Item deleted successfully!");
+      }
     } else {
       allItems = allItems.filter(item => item.id !== itemToDelete);
       localStorage.setItem("myItems", JSON.stringify(allItems));
-      alert("Item deleted successfully!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("Item deleted successfully!");
+      } else {
+        alert("Item deleted successfully!");
+      }
     }
 
     loadDashboardData();
     closeDeleteModal();
   } catch (error) {
     console.error('Error deleting item:', error);
-    alert("Failed to delete item. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to delete item. Please try again.");
+    } else {
+      alert("Failed to delete item. Please try again.");
+    }
     closeDeleteModal();
   }
 }
@@ -788,17 +882,29 @@ async function clearAllItems() {
       for (const item of allItems) {
         await window.productsAPI.delete(item.id);
       }
-      alert("All items have been deleted!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("All items have been deleted!");
+      } else {
+        alert("All items have been deleted!");
+      }
     } else {
       localStorage.removeItem("myItems");
-      alert("All items have been deleted!");
+      if (window.ModalUtils) {
+        window.ModalUtils.showSuccess("All items have been deleted!");
+      } else {
+        alert("All items have been deleted!");
+      }
     }
 
     allItems = [];
     loadDashboardData();
   } catch (error) {
     console.error('Error clearing items:', error);
-    alert("Failed to clear all items. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to clear all items. Please try again.");
+    } else {
+      alert("Failed to clear all items. Please try again.");
+    }
   }
 }
 
@@ -806,7 +912,11 @@ async function clearAllItems() {
 function viewTradeDetails(tradeId) {
   const trade = allTrades.find(t => t.id === tradeId);
   if (!trade) {
-    alert("Trade not found!");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Trade not found!");
+    } else {
+      alert("Trade not found!");
+    }
     return;
   }
 
@@ -821,7 +931,7 @@ function viewTradeDetails(tradeId) {
   } else if (trade.tradeType === 'MoneyOnly') {
     offeredDescription = `Cash Payment\nAmount: Ksh ${trade.moneyAmount.toLocaleString()}`;
   } else if (trade.tradeType === 'BarterPlusMoney' && trade.offeredItem) {
-    offeredDescription = `${trade.offeredItem.name} (Ksh ${trade.offeredItem.price.toLocaleString()})\n+ Cash: Ksh ${trade.moneyAmount.toLocaleString()}`;
+    offeredDescription = `${trade.offeredItem.name} + Ksh ${trade.moneyAmount.toLocaleString()}`;
   }
 
   const valueDiff = trade.valueDifference || (offeredValue - requestedPrice);
@@ -897,7 +1007,11 @@ async function approveTrade(tradeId) {
     loadDashboardData();
   } catch (error) {
     console.error('Error approving trade:', error);
-    alert("Failed to approve trade. Please try again.");
+    if (window.ModalUtils) {
+      window.ModalUtils.showError("Failed to approve trade. Please try again.");
+    } else {
+      alert("Failed to approve trade. Please try again.");
+    }
   }
 }
 
